@@ -16,6 +16,11 @@ LeviathanHandle *leviathan_init(int N, int max_delay, int *h_row_ptr,
 float leviathan_step(LeviathanHandle *handle, float dt);
 void leviathan_get_theta(LeviathanHandle *handle, float *h_theta);
 void leviathan_set_theta(LeviathanHandle *handle, float *h_theta);
+void leviathan_set_gain(LeviathanHandle *handle, float g);
+float leviathan_get_gain(LeviathanHandle *handle);
+void leviathan_set_gain_controller(LeviathanHandle *handle, bool enabled);
+size_t leviathan_get_vram_usage(LeviathanHandle *handle);
+void leviathan_reset_weights(LeviathanHandle *handle, float *h_weights);
 void leviathan_free(LeviathanHandle *handle);
 }
 
@@ -59,6 +64,18 @@ public:
     leviathan_set_theta(handle, (float *)buf.ptr);
   }
 
+  void set_gain(float g) { leviathan_set_gain(handle, g); }
+  float get_gain() { return leviathan_get_gain(handle); }
+  void set_gain_controller(bool enabled) {
+    leviathan_set_gain_controller(handle, enabled);
+  }
+  size_t get_vram_usage() { return leviathan_get_vram_usage(handle); }
+
+  void reset_weights(py::array_t<float> weights) {
+    auto buf = weights.request();
+    leviathan_reset_weights(handle, (float *)buf.ptr);
+  }
+
   ~LeviathanPython() { leviathan_free(handle); }
 };
 
@@ -75,5 +92,14 @@ PYBIND11_MODULE(leviathan_cuda, m) {
       .def("get_theta", &LeviathanPython::get_theta,
            "Copy current phase array from device to host (returns NumPy array)")
       .def("set_theta", &LeviathanPython::set_theta,
-           "Upload phase array from host to device");
+           "Upload phase array from host to device")
+      .def("set_gain", &LeviathanPython::set_gain, "Set coupling gain g")
+      .def("get_gain", &LeviathanPython::get_gain,
+           "Get current coupling gain g")
+      .def("set_gain_controller", &LeviathanPython::set_gain_controller,
+           "Toggle homeostatic gain controller")
+      .def("get_vram_usage", &LeviathanPython::get_vram_usage,
+           "Get total VRAM consumed by this engine in bytes")
+      .def("reset_weights", &LeviathanPython::reset_weights,
+           "Reload synaptic weights from host array");
 }

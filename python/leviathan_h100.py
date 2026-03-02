@@ -92,6 +92,51 @@ class LeviathanObservatory:
         self.step_count += 1
         return r
 
+    def set_gain(self, g):
+        self.engine.set_gain(g)
+
+    def get_gain(self):
+        return self.engine.get_gain()
+
+    def set_gain_controller(self, enabled):
+        self.engine.set_gain_controller(enabled)
+
+    def get_vram_usage(self):
+        return self.engine.get_vram_usage()
+
+    def reset_weights(self, weights=None):
+        if weights is None:
+            weights = self.weights
+        self.engine.reset_weights(weights)
+
+    def get_vram_report(self):
+        """Return a formatted VRAM usage report"""
+        bytes_used = self.get_vram_usage()
+        mb_used = bytes_used / (1024 * 1024)
+
+        # Theoretical breakdown
+        n_float = 4
+        n_int = 4
+        n_uint8 = 1
+
+        breakdown = {
+            "History Buffer": self.N * (self.max_delay + 1) * n_float,
+            "Topology (CSR)": (self.N + 1) * n_int
+            + self.nnz * (n_int + n_uint8 + n_float),
+            "Node States": self.N
+            * n_float
+            * 6,  # theta, theta_hat, omega, omega_hat, eps, sum_coupling
+            "Reduction Buffers": (self.N // 256 + 1) * n_float * 2 + n_float,
+        }
+
+        report = f"VRAM Usage Report (N={self.N}, E={self.nnz})\n"
+        report += f"{'-'*40}\n"
+        for k, v in breakdown.items():
+            report += f"{k:20s} : {v/(1024*1024):8.2f} MB\n"
+        report += f"{'-'*40}\n"
+        report += f"{'TOTAL (Measured)':20s} : {mb_used:8.2f} MB\n"
+        return report
+
     def run_baseline(self, num_steps=500, log_interval=100):
         """Warm up system to metastable criticality"""
         print(f"[Observatory] Baseline run: {num_steps} steps")
@@ -226,4 +271,20 @@ def main():
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Leviathan — Phase Dynamics Observatory"
+    )
+    parser.add_argument(
+        "--memory-report", action="store_true", help="Print VRAM usage report and exit"
+    )
+    parser.add_argument("--N", type=int, default=100000, help="Number of nodes")
+    args = parser.parse_args()
+
+    if args.memory_report:
+        obs = LeviathanObservatory(N=args.N, k=20, max_delay=50)
+        print(obs.get_vram_report())
+        sys.exit(0)
+
     main()

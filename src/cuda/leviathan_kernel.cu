@@ -39,6 +39,9 @@ struct LeviathanHandle {
   float w_min, w_max;
   float g, r0, beta, mu;
   float g_min, g_max;
+  bool gain_controller_enabled;
+
+  size_t total_vram_bytes;
 
   // Device topology arrays (read-only after init)
   int *d_row_ptr;
@@ -290,6 +293,21 @@ LeviathanHandle *leviathan_init(int N, int max_delay, int *h_row_ptr,
   handle->mu = 0.01f;
   handle->g_min = 0.1f;
   handle->g_max = 5.0f;
+  handle->gain_controller_enabled = true;
+  handle->total_vram_bytes = 0;
+
+  handle->total_vram_bytes += (N + 1) * sizeof(int);               // row_ptr
+  handle->total_vram_bytes += handle->num_edges * sizeof(int);     // col_idx
+  handle->total_vram_bytes += handle->num_edges * sizeof(uint8_t); // delays
+  handle->total_vram_bytes += handle->num_edges * sizeof(float);   // weights
+  handle->total_vram_bytes +=
+      N * sizeof(float) * 5; // theta, theta_hat, omega, omega_hat, eps
+  handle->total_vram_bytes += N * sizeof(float); // sum_coupling
+  handle->total_vram_bytes +=
+      N * handle->buffer_size * sizeof(float); // theta_buffer
+  handle->total_vram_bytes +=
+      handle->blocks * sizeof(float) * 2;    // d_block_cos, d_block_sin
+  handle->total_vram_bytes += sizeof(float); // d_r_result
 
   CUDA_CHECK(cudaStreamCreate(&handle->stream));
 
@@ -410,9 +428,11 @@ float leviathan_step(LeviathanHandle *handle, float dt) {
   float r = *(handle->h_r_pinned);
 
   // 5. Metastability Gain Controller
-  handle->g +=
-      dt * (handle->beta * (handle->r0 - r) - handle->mu * (handle->g - 1.5f));
-  handle->g = std::fmax(handle->g_min, std::fmin(handle->g_max, handle->g));
+  if (handle->gain_controller_enabled) {
+    handle->g += dt * (handle->beta * (handle->r0 - r) -
+                       handle->mu * (handle->g - 1.5f));
+    handle->g = std::fmax(handle->g_min, std::fmin(handle->g_max, handle->g));
+  }
 
   return r;
 }
@@ -455,6 +475,25 @@ void leviathan_free(LeviathanHandle *handle) {
 
   cudaStreamDestroy(handle->stream);
   delete handle;
+}
+
+void leviathan_set_gain(LeviathanHandle *handle, float g) { handle->g = g; }
+
+float leviathan_get_gain(LeviathanHandle *handle) { return handle->g; }
+
+void leviathan_set_gain_controller(LeviathanHandle *handle, bool enabled) {
+  handle->gain_controller_enabled = enabled;
+}
+
+size_t leviathan_get_vram_usage(LeviathanHandle *handle) {
+  return handle->total_vram_bytes;
+}
+
+void leviathan_reset_weights(LeviathanHandle *handle, float *h_weights) {
+  CUDA_CHECK(cudaMemcpyAsync(handle->d_weights, h_weights,
+                             handle->num_edges * sizeof(float),
+                             cudaMemcpyHostToDevice, handle->stream));
+  CUDA_CHECK(cudaStreamSynchronize(handle->stream));
 }
 
 } // extern "C"
