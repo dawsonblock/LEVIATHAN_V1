@@ -1,6 +1,6 @@
 // leviathan_kernel.cu
-// Native C++/CUDA backend for Leviathan CSR Apex v3.3
-// Optimized for NVIDIA Hopper (SM90) — Full optimization pass
+// GPU-accelerated delayed Kuramoto network with adaptive coupling
+// Targets SM86 (3080 Ti) / SM90 (H100)
 
 #include <cmath>
 #include <cstdint>
@@ -154,6 +154,8 @@ __global__ __launch_bounds__(256, 4) // [OPT #4]
       float dw = dt * (eta * cos_diff * (1.0f - gamma * my_eps) - lam * w);
 
       w += dw;
+      if (!isfinite(w))
+        w = w_min; // NaN guard
       w = fmaxf(w_min, fminf(w_max, w));
       weights[e] = w;
     }
@@ -181,6 +183,8 @@ __global__ __launch_bounds__(256, 4) // [OPT #4]
 
     // Fast Wrap to [0, 2pi)
     x = x - floorf(x / TWO_PI) * TWO_PI;
+    if (!isfinite(x))
+      x = 0.0f; // NaN guard
     theta[i] = x;
     theta_buffer[i * buffer_size + next_buf_idx] = x;
 

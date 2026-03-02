@@ -1,6 +1,5 @@
 // leviathan_pybind11.cpp
-// Pybind11 Python bindings for native C++/CUDA engine
-// v3.3 Optimized: zero-copy get_theta, direct NumPy buffer writes
+// Pybind11 bindings for CUDA phase dynamics engine
 
 #include <cstdint>
 #include <pybind11/numpy.h>
@@ -37,9 +36,12 @@ public:
         (float *)theta_hat.request().ptr, (float *)omega.request().ptr);
   }
 
-  float step(float dt) { return leviathan_step(handle, dt); }
+  float step(float dt) {
+    py::gil_scoped_release release; // Release GIL during GPU work
+    return leviathan_step(handle, dt);
+  }
 
-  // [OPT #8] Zero-copy: write directly into NumPy array buffer
+  // Device-to-host copy into a new NumPy array
   py::array_t<float> get_theta() {
     auto result = py::array_t<float>(N);
     auto buf = result.request();
@@ -61,8 +63,7 @@ public:
 };
 
 PYBIND11_MODULE(leviathan_cuda, m) {
-  m.doc() =
-      "Leviathan CSR Apex v3.3: H100-optimized Dynamical Cognitive Simulator";
+  m.doc() = "GPU-accelerated delayed Kuramoto network with adaptive coupling";
 
   py::class_<LeviathanPython>(m, "LeviathanEngine")
       .def(
@@ -70,9 +71,9 @@ PYBIND11_MODULE(leviathan_cuda, m) {
                    py::array_t<uint8_t>, py::array_t<float>, py::array_t<float>,
                    py::array_t<float>, py::array_t<float>>())
       .def("step", &LeviathanPython::step,
-           "Execute one integration step (returns order parameter r)")
+           "Execute one integration step, returns order parameter r")
       .def("get_theta", &LeviathanPython::get_theta,
-           "Retrieve current phase array from H100 VRAM (zero-copy)")
+           "Copy current phase array from device to host (returns NumPy array)")
       .def("set_theta", &LeviathanPython::set_theta,
-           "Upload modified phase array to H100 VRAM (for stimulus injection)");
+           "Upload phase array from host to device");
 }
