@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # leviathan_h100.py
-# High-level Python interface to native H100 engine for Leviathan v3.3
-# Optimized: NumPy ring buffer for r_history, zero-copy phase transfers
+# High-level Python interface to the CUDA phase dynamics engine.
+# Builds a Watts-Strogatz graph, converts to CSR, and drives the GPU kernel.
 
 import numpy as np
 import networkx as nx
@@ -12,14 +12,14 @@ try:
     from leviathan_cuda import LeviathanEngine
 except ImportError:
     print("ERROR: leviathan_cuda module not found!")
-    print("Run: ./build_h100.sh")
+    print("Run: ./scripts/build_h100.sh")
     sys.exit(1)
 
 
 class LeviathanObservatory:
     """
-    Production-grade Dynamical Cognitive Simulator for H100
-    Scales to 100M+ nodes with real-time IIT computation
+    GPU-accelerated delayed Kuramoto network with adaptive coupling.
+    Wraps the CUDA engine with graph construction and telemetry.
     """
 
     def __init__(self, N=100000, k=20, max_delay=50, seed=42):
@@ -176,7 +176,7 @@ class LeviathanObservatory:
 
 def main():
     print("=" * 70)
-    print("LEVIATHAN CSR APEX v3.2 - H100 Observatory")
+    print("LEVIATHAN — Phase Dynamics Observatory")
     print("=" * 70)
     print()
 
@@ -184,10 +184,10 @@ def main():
     observatory = LeviathanObservatory(N=100000, k=20, max_delay=50)
 
     # Baseline: metastability settling
-    r_hist_1 = observatory.run_baseline(num_steps=500, log_interval=50)
+    observatory.run_baseline(num_steps=500, log_interval=50)
 
     # Stimulus: external sensory forcing
-    r_hist_2 = observatory.run_with_stimulus(num_steps=200, stimulus_start=100)
+    observatory.run_with_stimulus(num_steps=200, stimulus_start=100)
 
     # Retrieve phase snapshot
     theta_snapshot = observatory.get_phase_snapshot()

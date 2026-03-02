@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Leviathan CSR Apex v3.3 — Real-Time Observatory Dashboard
-Live visualization of phase dynamics, weight evolution, and IIT metrics.
-v3.3 Optimized: decimation, WebGL rendering, efficient updates
+Leviathan Observatory Dashboard
+Real-time visualization of phase dynamics and network metrics.
+Uses Plotly WebGL rendering with decimation for large node counts.
 
 Usage:
     python3 dashboard.py                    # Simulated data mode
@@ -11,15 +11,15 @@ Usage:
 """
 
 import argparse
-import json
+
 import threading
 import time
 from collections import deque
 
 import numpy as np
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, callback_context
-from dash.dependencies import Input, Output, State
+from dash import Dash, dcc, html
+from dash.dependencies import Input, Output
 
 # ---------------------------------------------------------------------------
 # Telemetry Data Store (Thread-safe ring buffer)
